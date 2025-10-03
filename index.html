@@ -1,4 +1,178 @@
-<!doctype html><meta charset="utf-8">
-<title>flow-trainer v0.2</title>
-<h1>flow-trainer v0.2</h1>
-<p>first deploy</p>
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>Δ Preset Decision Helper</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 2rem;
+      line-height: 1.5;
+    }
+    h1 {
+      margin-bottom: 0.5rem;
+    }
+    section {
+      margin-bottom: 2rem;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+    input[type="number"] {
+      width: 100%;
+      max-width: 12rem;
+      padding: 0.25rem 0.5rem;
+      margin-bottom: 1rem;
+      font-size: 1rem;
+    }
+    button {
+      font-size: 1rem;
+      padding: 0.5rem 1rem;
+      margin-right: 0.5rem;
+      cursor: pointer;
+    }
+    output {
+      display: inline-block;
+      min-width: 4rem;
+      font-weight: 700;
+    }
+    dl {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 0.25rem 1rem;
+    }
+    dt {
+      font-weight: 600;
+    }
+    .shortcut {
+      font-family: "Fira Code", "SFMono-Regular", ui-monospace, monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>Δ Preset Decision Helper</h1>
+  <p>Δ = 0.35 × Felt + 0.45 × DR + 0.20 × Ease。YES ≥ +0.20｜NO &lt; +0.10｜間は HYBRID。</p>
+
+  <section aria-labelledby="inputs-heading">
+    <h2 id="inputs-heading">スコア入力</h2>
+    <label>
+      Felt
+      <input id="felt" type="number" step="0.01" value="0" aria-describedby="felt-help">
+      <small id="felt-help">感触のスコア（例: -1.0 〜 +1.0）</small>
+    </label>
+    <label>
+      DR
+      <input id="dr" type="number" step="0.01" value="0" aria-describedby="dr-help">
+      <small id="dr-help">定量的なデータやリサーチの裏付け</small>
+    </label>
+    <label>
+      Ease
+      <input id="ease" type="number" step="0.01" value="0" aria-describedby="ease-help">
+      <small id="ease-help">実装・運用の容易さ</small>
+    </label>
+  </section>
+
+  <section aria-labelledby="result-heading">
+    <h2 id="result-heading">結果</h2>
+    <p>Δ: <output id="delta" aria-live="polite">0.00</output></p>
+    <p>推奨判定: <output id="auto-decision" aria-live="polite">HYBRID</output></p>
+    <p>最終判定: <output id="final-decision" aria-live="polite">-</output></p>
+  </section>
+
+  <section aria-labelledby="actions-heading">
+    <h2 id="actions-heading">判定の更新</h2>
+    <p>ボタンまたは Alt+1 / Alt+2 / Alt+3 で判定を即時更新できます。</p>
+    <div>
+      <button type="button" data-decision="YES" data-shortcut="Alt+1">YES</button>
+      <button type="button" data-decision="HYBRID" data-shortcut="Alt+2">HYBRID</button>
+      <button type="button" data-decision="NO" data-shortcut="Alt+3">NO</button>
+    </div>
+  </section>
+
+  <section aria-labelledby="summary-heading">
+    <h2 id="summary-heading">使い方のメモ</h2>
+    <dl>
+      <dt>Δ の更新</dt>
+      <dd>各スコアが変更されると Δ と推奨判定がリアルタイムで更新されます。</dd>
+      <dt>ショートカット</dt>
+      <dd><span class="shortcut">Alt+1</span> = YES、<span class="shortcut">Alt+2</span> = HYBRID、<span class="shortcut">Alt+3</span> = NO。</dd>
+      <dt>最終判定</dt>
+      <dd>ボタン操作またはショートカットで最終判定欄が更新されます。</dd>
+    </dl>
+  </section>
+
+  <script>
+    const feltInput = document.getElementById('felt');
+    const drInput = document.getElementById('dr');
+    const easeInput = document.getElementById('ease');
+    const deltaOutput = document.getElementById('delta');
+    const autoDecisionOutput = document.getElementById('auto-decision');
+    const finalDecisionOutput = document.getElementById('final-decision');
+    const buttons = Array.from(document.querySelectorAll('button[data-decision]'));
+
+    function clamp(value) {
+      if (!Number.isFinite(value)) {
+        return 0;
+      }
+      return Math.max(-1, Math.min(1, value));
+    }
+
+    function format(value) {
+      return value.toFixed(2);
+    }
+
+    function evaluate() {
+      const felt = clamp(parseFloat(feltInput.value));
+      const dr = clamp(parseFloat(drInput.value));
+      const ease = clamp(parseFloat(easeInput.value));
+      const delta = 0.35 * felt + 0.45 * dr + 0.20 * ease;
+      deltaOutput.textContent = format(delta);
+      autoDecisionOutput.textContent = classify(delta);
+    }
+
+    function classify(delta) {
+      if (delta >= 0.20) {
+        return 'YES';
+      }
+      if (delta < 0.10) {
+        return 'NO';
+      }
+      return 'HYBRID';
+    }
+
+    function updateFinal(decision) {
+      finalDecisionOutput.textContent = decision;
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        updateFinal(button.dataset.decision);
+      });
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (!event.altKey) {
+        return;
+      }
+      const keyMap = {
+        '1': 'YES',
+        '2': 'HYBRID',
+        '3': 'NO'
+      };
+      const decision = keyMap[event.key];
+      if (decision) {
+        event.preventDefault();
+        updateFinal(decision);
+      }
+    });
+
+    [feltInput, drInput, easeInput].forEach((input) => {
+      input.addEventListener('input', evaluate);
+    });
+
+    evaluate();
+  </script>
+</body>
+</html>
